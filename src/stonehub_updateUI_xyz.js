@@ -1,18 +1,17 @@
 // ==UserScript==
 // @name         stonehub_updateUI_xyz
 // @namespace    http://tampermonkey.net/
-// @version      1.1.2
+// @version      1.1.3
 // @description  retrieve prices from idlescape.xyz and inject it in idlescape inventory
-// @author       godi, weld, gamergeo, flo
+// @author       godi, weld, gamergeo, flo, jiggyjinjo
 // @match        https://idlescape.com/game*
 // @run-at       document-start
 // @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 class Stonehub_updateUI_xyz {
-
     constructor() {
-        this.extension_id = 'updateui';
+        this.extension_id = "updateui";
         this.status_refresh_time = 3000;
 
         this.xyz_data;
@@ -30,120 +29,127 @@ class Stonehub_updateUI_xyz {
 
         this.status_div;
         this.activated_extensions = {
-            'stonehub':false,
-            'updateui':false
+            stonehub: false,
+            updateui: false,
         };
     }
 
     error_handler(that, e) {
-        let alert_msg = "Something goes wrong with Stonehub_updateUI_xyz ! \nError msg: " + e.message + "\nPlease reload the page or contact messenoire / Gamergeo / Godi";
+        let alert_msg =
+            "Something went wrong with Stonehub_updateUI_xyz ! \nError msg: " + e.message + "\nPlease reload the page or contact messenoire / Gamergeo / Godi";
         console.log(alert_msg);
         //alert(alert_msg);
     }
 
     start() {
         let that = this;
-        
+
         // wait for loading to complete, then check which ext is activated
-        let page_ready = setInterval(() =>{
-            if(document.readyState == 'complete'){
+        let page_ready = setInterval(() => {
+            if (document.readyState == "complete") {
                 clearInterval(page_ready);
                 that.set_status(that);
-                that.retrieve_status_div(that)
+                that.retrieve_status_div(that);
+                that.init_resizer_bar();
             }
-            ;
         }, 200);
 
         // launch xyz prices (xyz) daemon
         setInterval(() => {
             try {
                 that.xyz_main(that);
-            } catch(e) {that.error_handler(that, e);}
+            } catch (e) {
+                that.error_handler(that, e);
+            }
         }, that.xyz_refresh_rate);
         // launch geode_opener (go) daemon
         this.timer_hook = setInterval(() => {
             try {
                 that.go_geode_hook(that);
-            } catch(e) {that.error_handler(that, e);}
+            } catch (e) {
+                that.error_handler(that, e);
+            }
         }, that.go_interval_retry);
     }
 }
 
-Stonehub_updateUI_xyz.prototype.create_status_div = function(that) {
+Stonehub_updateUI_xyz.prototype.create_status_div = function (that) {
     /**
      * <div id='stonehub_status'></div>
      */
-    const sdiv = document.createElement('div');
-    sdiv.id = 'stonehub_status';
-    sdiv.style.display = 'none';
+    const sdiv = document.createElement("div");
+    sdiv.id = "stonehub_status";
+    sdiv.style.display = "none";
     document.body.appendChild(sdiv);
-    return document.getElementById('stonehub_status');
-}
+    return document.getElementById("stonehub_status");
+};
 
-Stonehub_updateUI_xyz.prototype.set_status = function(that) {
-    if(!that.activated_extensions.stonehub){
+Stonehub_updateUI_xyz.prototype.set_status = function (that) {
+    if (!that.activated_extensions.stonehub) {
         that.status_div = that.status_div ?? that.create_status_div(that);
-        let ext_status = document.createElement('div');
+        let ext_status = document.createElement("div");
         ext_status.id = that.extension_id;
         that.status_div.appendChild(ext_status);
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.retrieve_status_div = function(that) {
+Stonehub_updateUI_xyz.prototype.retrieve_status_div = function (that) {
     /**
      * Checks inside <div id='stonehub_status'></div> which script is activated
      * and update its state inside this.activated_extensions
      */
-    setInterval(() => {    
+    setInterval(() => {
         that.status_div = that.status_div ?? that.create_status_div(that);
-        [...that.status_div.children].forEach(ext =>{
+        [...that.status_div.children].forEach((ext) => {
             that.activated_extensions[ext.id] = true;
         });
     }, that.status_refresh_time);
-}
+};
 
-Stonehub_updateUI_xyz.prototype.int_to_commas = function(x) {
+Stonehub_updateUI_xyz.prototype.int_to_commas = function (x) {
     // src https://stackoverflow.com/questions/2901102/how-to-print-a-number-with-commas-as-thousands-separators-in-javascript
     return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-}
+};
 
-
-Stonehub_updateUI_xyz.prototype.xyz_main = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_main = function (that) {
     // This function is called every "xyz_refresh_rate" seconds and refreshes price according to items displayed on screen
     that.xyz_get_inventory_HTML(that);
     that.xyz_get_market_HTML(that);
     that.xyz_get_enchant_HTML(that);
-    if(that.xyz_inventory_items.length > 0 || that.xyz_market_items.length > 0 || that.xyz_enchant_items.length > 0) that.xyz_get_prices(that);
+    if (that.xyz_inventory_items.length > 0 || that.xyz_market_items.length > 0 || that.xyz_enchant_items.length > 0) that.xyz_get_prices(that);
     that.xyz_show_gold_heat(that);
     that.xyz_am_i_minprice(that);
-}
+};
 
-
-Stonehub_updateUI_xyz.prototype.xyz_get_inventory_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_get_inventory_HTML = function (that) {
     that.xyz_inventory_HTML = "";
     that.xyz_inventory_items = [];
-    if (! document.getElementsByClassName("inventory-panel")[0]) {return;} // Inventory isn't being displayed => Leave
+    if (!document.getElementsByClassName("inventory-panel")[0]) {
+        return;
+    } // Inventory isn't being displayed => Leave
     that.xyz_inventory_HTML = document.getElementsByClassName("inventory-container-all-items")[0].children[0];
     for (var i = 0; i < that.xyz_inventory_HTML.childElementCount; i++) {
         let item_node = that.xyz_inventory_HTML.children[i];
-        if(item_node){
-            let node_value = item_node.attributes['data-for'].nodeValue;
-            let item_name = ""
+        if (item_node) {
+            let node_value = item_node.attributes["data-for"].nodeValue;
+            let item_name = "";
             if (node_value.includes("stockpile", 1)) {
-                item_name = node_value.substring(7,node_value.indexOf("stockpile"));
+                item_name = node_value.substring(7, node_value.indexOf("stockpile"));
             } else {
-                item_name = node_value.substring(7,node_value.indexOf("vault"));
+                item_name = node_value.substring(7, node_value.indexOf("vault"));
             }
-            that.xyz_inventory_items.push([item_name,]);
+            that.xyz_inventory_items.push([item_name]);
         }
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_get_market_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_get_market_HTML = function (that) {
     that.xyz_market_HTML = "";
     that.xyz_market_items = [];
-    that.xyz_active_market_tag = ""
-    if (! document.getElementsByClassName("marketplace-content")[0]) {return;} // Market isn't open => Leave
+    that.xyz_active_market_tag = "";
+    if (!document.getElementsByClassName("marketplace-content")[0]) {
+        return;
+    } // Market isn't open => Leave
     if (document.getElementsByClassName("marketplace-sell-items all-items")[0]) {
         // market is open on "Sell" tab
         that.xyz_active_market_tag = "marketplace-sell-items all-items";
@@ -151,7 +157,7 @@ Stonehub_updateUI_xyz.prototype.xyz_get_market_HTML = function(that) {
         // market is open on "Buy" tab
         that.xyz_active_market_tag = "marketplace-content";
     }
-    if (that.xyz_active_market_tag=="marketplace-sell-items all-items") {
+    if (that.xyz_active_market_tag == "marketplace-sell-items all-items") {
         // Since we're unable to read item names in sell tab, let's just copy the inventory list since it must be the same (tricky but should work), then leave
         that.xyz_market_HTML = document.getElementsByClassName(that.xyz_active_market_tag)[0];
         that.xyz_market_items = that.xyz_inventory_items;
@@ -160,34 +166,34 @@ Stonehub_updateUI_xyz.prototype.xyz_get_market_HTML = function(that) {
     that.xyz_market_HTML = document.getElementsByClassName(that.xyz_active_market_tag)[0].children[0];
     for (var i = 0; i < that.xyz_market_HTML.childElementCount; i++) {
         let current_item_node = that.xyz_market_HTML.children[i].children[0].children[0];
-        if(current_item_node){
-            let item_name = current_item_node.attributes['alt'].nodeValue;
-            that.xyz_market_items.push([item_name,]);
+        if (current_item_node) {
+            let item_name = current_item_node.attributes["alt"].nodeValue;
+            that.xyz_market_items.push([item_name]);
         }
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_get_enchant_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_get_enchant_HTML = function (that) {
     // Add prices into scrollcrafting container
     that.xyz_enchant_HTML = "";
     that.xyz_enchant_items = [];
     var enchant_tab = document.getElementsByClassName("enchanting-tabs")[0];
     if (enchant_tab) {
         if (enchant_tab.children[0].className == "enchanting-tab-selected") {
-            var scrolls = that.xyz_enchant_HTML = document.getElementsByClassName("scrollcrafting-main")[0].children[1];
-            for(var i = 0; i < scrolls.childElementCount; i++) {
-                that.xyz_enchant_items.push([scrolls.children[i].children[0].attributes['alt'].nodeValue,]);
+            var scrolls = (that.xyz_enchant_HTML = document.getElementsByClassName("scrollcrafting-main")[0].children[1]);
+            for (var i = 0; i < scrolls.childElementCount; i++) {
+                that.xyz_enchant_items.push([scrolls.children[i].children[0].attributes["alt"].nodeValue]);
             }
         }
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_update_inventory_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_update_inventory_HTML = function (that) {
     // Create HTML div into the item node so we can display the price onto it
     for (var i = 0; i < that.xyz_inventory_items.length; i++) {
         let item_node = that.xyz_inventory_HTML.children[i];
-        if(item_node){
-            if(item_node.getElementsByClassName("price").length==0){
+        if (item_node) {
+            if (item_node.getElementsByClassName("price").length == 0) {
                 // If the div was not created yet, create it with adapted CSS style and also move down the enchant icon
                 var newNode = document.createElement("div");
                 newNode.className = "price";
@@ -205,17 +211,17 @@ Stonehub_updateUI_xyz.prototype.xyz_update_inventory_HTML = function(that) {
             }
             // Populate the div with xyz API current price
             let value = that.xyz_inventory_items[i][1];
-            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : 'no data...';
+            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : "no data...";
         }
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_update_market_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_update_market_HTML = function (that) {
     // Create HTML div into the item node so we can display the price onto it
     for (var i = 0; i < that.xyz_market_items.length; i++) {
         let item_node = that.xyz_market_HTML.children[i].children[0];
-        if(item_node){
-            if(item_node.getElementsByClassName("price").length==0){
+        if (item_node) {
+            if (item_node.getElementsByClassName("price").length == 0) {
                 // If the div was not created yet, create it with adapted CSS style and also move down the enchant icon
                 var newNode = document.createElement("div");
                 newNode.className = "price";
@@ -226,7 +232,7 @@ Stonehub_updateUI_xyz.prototype.xyz_update_market_HTML = function(that) {
                 newNode.style.fontSize = "11px";
                 var lastNode = item_node.lastElementNode;
                 item_node.insertBefore(newNode, lastNode);
-                if(that.xyz_active_market_tag == "marketplace-sell-items all-items"){
+                if (that.xyz_active_market_tag == "marketplace-sell-items all-items") {
                     var enchantNode = item_node.getElementsByClassName("item-enchant").item(0);
                     enchantNode.style.position = "absolute";
                     enchantNode.style.top = "8px";
@@ -235,17 +241,17 @@ Stonehub_updateUI_xyz.prototype.xyz_update_market_HTML = function(that) {
             }
             // Populate the div with xyz API current price
             let value = that.xyz_market_items[i][1];
-            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : 'no data...';
+            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : "no data...";
         }
     }
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_update_enchant_HTML = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_update_enchant_HTML = function (that) {
     // Create HTML div into the item node so we can display the price onto it
     for (var i = 0; i < that.xyz_enchant_items.length; i++) {
         let item_node = that.xyz_enchant_HTML.children[i];
-        if(item_node){
-            if(item_node.getElementsByClassName("price").length==0){
+        if (item_node) {
+            if (item_node.getElementsByClassName("price").length == 0) {
                 // If the div was not created yet, create it with adapted CSS
                 var newNode = document.createElement("div");
                 newNode.className = "price";
@@ -258,158 +264,202 @@ Stonehub_updateUI_xyz.prototype.xyz_update_enchant_HTML = function(that) {
             }
             // Populate the div with xyz API current price
             let value = that.xyz_enchant_items[i][1];
-            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : 'no data...';
+            item_node.getElementsByClassName("price").item(0).textContent = value ? that.int_to_commas(value) : "no data...";
         }
     }
-}
+};
 
-
-Stonehub_updateUI_xyz.prototype.xyz_get_prices = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_get_prices = function (that) {
     // xhr request to scrape idlescape.xyz prices in JSON format
     // xhr request is asynchronous as for now (synchronous = true not working, neither callback apparently), and so HTML edits must happen inside the onload event for now
     GM_xmlhttpRequest({
         url: "https://api.idlescape.xyz/prices",
         method: "GET",
-        onload: response => {
-            that.xyz_data = JSON.parse(response.responseText)['items'];
+        onload: (response) => {
+            that.xyz_data = JSON.parse(response.responseText)["items"];
             // Get price for each item in inventory
             for (var i = 0; i < that.xyz_inventory_items.length; i++) {
                 for (var j = 0; j < that.xyz_data.length; j++) {
-                    if (that.xyz_data[j]['name'] == that.xyz_inventory_items[i][0]) {
-                        that.xyz_inventory_items[i][1]=that.xyz_data[j]['price'];
+                    if (that.xyz_data[j]["name"] == that.xyz_inventory_items[i][0]) {
+                        that.xyz_inventory_items[i][1] = that.xyz_data[j]["price"];
                         break;
                     }
                 }
             }
-            if(that.xyz_inventory_items.length > 0) that.xyz_update_inventory_HTML(that);
+            if (that.xyz_inventory_items.length > 0) that.xyz_update_inventory_HTML(that);
 
             // Get price for each item in market
             for (i = 0; i < that.xyz_market_items.length; i++) {
                 for (j = 0; j < that.xyz_data.length; j++) {
-                    if (that.xyz_data[j]['name'] == that.xyz_market_items[i][0]) {
-                        that.xyz_market_items[i][1]=that.xyz_data[j]['price'];
+                    if (that.xyz_data[j]["name"] == that.xyz_market_items[i][0]) {
+                        that.xyz_market_items[i][1] = that.xyz_data[j]["price"];
                         break;
                     }
                 }
             }
-            if(that.xyz_market_items.length > 0) that.xyz_update_market_HTML(that);
+            if (that.xyz_market_items.length > 0) that.xyz_update_market_HTML(that);
 
             // Get price for each scroll in enchant
             for (i = 0; i < that.xyz_enchant_items.length; i++) {
                 for (j = 0; j < xyz_data.length; j++) {
-                    if (xyz_data[j]['name'] == that.xyz_enchant_items[i][0]) {
-                        that.xyz_enchant_items[i][1]=xyz_data[j]['price'];
+                    if (xyz_data[j]["name"] == that.xyz_enchant_items[i][0]) {
+                        that.xyz_enchant_items[i][1] = xyz_data[j]["price"];
                         break;
                     }
                 }
             }
-            if(that.xyz_enchant_items.length > 0) that.xyz_update_enchant_HTML(that);
-        }
+            if (that.xyz_enchant_items.length > 0) that.xyz_update_enchant_HTML(that);
+        },
     });
-}
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_show_gold_heat = function(that) {
+Stonehub_updateUI_xyz.prototype.xyz_show_gold_heat = function (that) {
     // Simply shows entirely gold and heat amounts
-    if (! document.getElementsByClassName("inventory-panel")[0]) {return;} // Inventory isn't being displayed => Leave
-    document.getElementById('gold').textContent = document.getElementById('gold-tooltip').children[1].textContent
-    document.getElementById('heat').textContent = document.getElementById('heat-tooltip').children[1].textContent
-}
+    if (!document.getElementsByClassName("inventory-panel")[0]) {
+        return;
+    } // Inventory isn't being displayed => Leave
+    document.getElementById("gold").textContent = document.getElementById("gold-tooltip").children[1].textContent;
+    document.getElementById("heat").textContent = document.getElementById("heat-tooltip").children[1].textContent;
+};
 
-Stonehub_updateUI_xyz.prototype.xyz_am_i_minprice = function(that) {
-    const table = document.getElementsByClassName('crafting-table marketplace-table marketplace-my-auctions-table')[0];
-    if(table){
-        const items = table.getElementsByTagName('tbody')[0].children;
-        [...items].forEach(tr => {
+Stonehub_updateUI_xyz.prototype.xyz_am_i_minprice = function (that) {
+    const table = document.getElementsByClassName("crafting-table marketplace-table marketplace-my-auctions-table")[0];
+    if (table) {
+        const items = table.getElementsByTagName("tbody")[0].children;
+        [...items].forEach((tr) => {
             const infos = {
-                'name':tr.childNodes[0].childNodes[0].childNodes[1].childNodes[0].innerHTML,
-                'price': that.activated_extensions.stonehub ? (tr.childNodes[tr.childNodes.length - 2].innerHTML).replace(/\s+/g, '') : (tr.childNodes[tr.childNodes.length - 1].innerHTML).replace(/\s+/g, '')
+                name: tr.childNodes[0].childNodes[0].childNodes[1].childNodes[0].innerHTML,
+                price: that.activated_extensions.stonehub
+                    ? tr.childNodes[tr.childNodes.length - 2].innerHTML.replace(/\s+/g, "")
+                    : tr.childNodes[tr.childNodes.length - 1].innerHTML.replace(/\s+/g, ""),
             };
 
-            that.xyz_data.forEach(d => {
-                if(infos.name == d.name) {
-                    const color = infos.price == d.price ? 'green' : 'red';
-                    console.log(infos.name + ':' + infos.price + ' ' + d.price + ' ' +color);
-                    if(infos.price == d.price)
-                        tr.style.backgroundColor = '#3254fc';
-                    else
-                        tr.style.backgroundColor = '#eb4646';
-               }
+            that.xyz_data.forEach((d) => {
+                if (infos.name == d.name) {
+                    const color = infos.price == d.price ? "green" : "red";
+                    console.log(infos.name + ":" + infos.price + " " + d.price + " " + color);
+                    if (infos.price == d.price) tr.style.backgroundColor = "#3254fc";
+                    else tr.style.backgroundColor = "#eb4646";
+                }
             });
-
         });
     }
-}
+};
 
+Stonehub_updateUI_xyz.prototype.init_resizer_bar = () => {
+    let block = document.querySelector(".play-area-chat");
+    block.style.flex = "none";
+    block.style.minWidth = "15%";
+    block.style.maxWidth = "78%";
+    block.style.width = "50%";
+    let slider = document.createElement("div");
+    slider.id = "handler";
+    slider.style.minWidth = "10px";
+    slider.style.cursor = "ew-resize";
+    block.after(slider);
+
+    slider.onmousedown = function dragMouseDown(e) {
+        let dragX = e.clientX;
+        document.onmousemove = function onMouseMove(e) {
+            block.style.width = block.offsetWidth + e.clientX - dragX + "px";
+            dragX = e.clientX;
+        };
+        document.onmouseup = () => (document.onmousemove = document.onmouseup = null);
+    };
+};
 
 // **************************************************************************
 //             PARTIE               GEODE - OPENER
 // **************************************************************************
 
-
-Stonehub_updateUI_xyz.prototype.go_geode_hook = function(that) {
+Stonehub_updateUI_xyz.prototype.go_geode_hook = function (that) {
     try {
         var inventory_HTML = document.getElementsByClassName("inventory-container-all-items")[0].children[0];
-    } catch(e) { return;}
-    var geode_div = "";
-    for(var i = 0; i < inventory_HTML.childElementCount; i++) {
-        if (inventory_HTML.children[i].outerHTML.includes("Geode")) {geode_div = inventory_HTML.children[i]; break;}
+    } catch (e) {
+        return;
     }
-    if (geode_div) {
-        if(! geode_div.attributes["fdp-event"]){
-            geode_div.attributes["fdp-event"] = true;
-            geode_div.addEventListener("click", (e) => {that.go_geode_item_clicked(that,e);}, false);
+    var geode_div = "";
+    for (var i = 0; i < inventory_HTML.childElementCount; i++) {
+        if (inventory_HTML.children[i].outerHTML.includes("Geode")) {
+            geode_div = inventory_HTML.children[i];
+            break;
         }
     }
-}
+    if (geode_div) {
+        if (!geode_div.attributes["fdp-event"]) {
+            geode_div.attributes["fdp-event"] = true;
+            geode_div.addEventListener(
+                "click",
+                (e) => {
+                    that.go_geode_item_clicked(that, e);
+                },
+                false
+            );
+        }
+    }
+};
 
-Stonehub_updateUI_xyz.prototype.go_geode_item_clicked = function(that) {
+Stonehub_updateUI_xyz.prototype.go_geode_item_clicked = function (that) {
     var UI_Geode_hook = setInterval(() => {
-        try{
+        try {
             var menu_open = document.getElementsByClassName("MuiDialogActions-root item-dialogue-button-div MuiDialogActions-spacing")[0];
-            var new_button = document.createElement('div');
+            var new_button = document.createElement("div");
             new_button.innerHTML = `<div variant="contained" color="secondary" class="item-dialogue-button idlescape-button idlescape-button-green">OUVRE MOI ÇA FDP ! <img src="https://raw.githubusercontent.com/geode-booster/geode-booster.github.io/master/211148-full.png" alt="Geode" class="icon40"></div>`;
             menu_open.insertBefore(new_button, menu_open.children[1]);
-            menu_open.children[1].children[0].addEventListener("click", (e) => {that.go_run(that,e);}, false);
+            menu_open.children[1].children[0].addEventListener(
+                "click",
+                (e) => {
+                    that.go_run(that, e);
+                },
+                false
+            );
             clearInterval(UI_Geode_hook);
-        } catch(e) { return; }
+        } catch (e) {
+            return;
+        }
     }, 100);
-}
+};
 
-Stonehub_updateUI_xyz.prototype.go_run = function(that) {
-    that.go_nb_geode = parseInt(document.getElementsByClassName("MuiInputBase-input MuiInput-input MuiInputBase-inputMarginDense MuiInput-inputMarginDense")[0].value,10);
+Stonehub_updateUI_xyz.prototype.go_run = function (that) {
+    that.go_nb_geode = parseInt(
+        document.getElementsByClassName("MuiInputBase-input MuiInput-input MuiInputBase-inputMarginDense MuiInput-inputMarginDense")[0].value,
+        10
+    );
     var Bouton_open = document.getElementsByClassName("MuiDialogActions-root item-dialogue-button-div MuiDialogActions-spacing")[0].children[0].children[0];
     Bouton_open.click();
-    document.getElementsByClassName('chat-tabs')[0].children[1].click();
+    document.getElementsByClassName("chat-tabs")[0].children[1].click();
     // Retrieve all items in geode
     var Activity_Geode_hook = setInterval(() => {
-        try{
+        try {
             var messages = document.getElementsByClassName("activity-log");
-            var geode = ""
-            if(messages[messages.length-1].textContent.includes("You cracked open") && ! messages[messages.length-1].attributes["opened"]) {
-                geode = messages[messages.length-1].textContent;
-                messages[messages.length-1].attributes["opened"]=true;
+            var geode = "";
+            if (messages[messages.length - 1].textContent.includes("You cracked open") && !messages[messages.length - 1].attributes["opened"]) {
+                geode = messages[messages.length - 1].textContent;
+                messages[messages.length - 1].attributes["opened"] = true;
             } else {
                 // no log yet in Activity tab, we need to wait 40 more ms for server to respond
                 return;
             }
             // Only for testing purpose
-//             geode = "You cracked open 4 geodes and found Copper Ore x 27, Iron Ore x 39, Gold Ore x 139, Mithril Ore x 22, Runite Ore x 21, Clay x 19, Stone x 43, Sand x 16, Silver x 75, Coal x 82, Sapphire x 2, Diamond x 1, as loot."
-            geode = geode.substring(geode.indexOf("found ")+6,(that.go_nb_geode>1) ? geode.lastIndexOf(",") : geode.indexOf(" as loot."));
+            //             geode = "You cracked open 4 geodes and found Copper Ore x 27, Iron Ore x 39, Gold Ore x 139, Mithril Ore x 22, Runite Ore x 21, Clay x 19, Stone x 43, Sand x 16, Silver x 75, Coal x 82, Sapphire x 2, Diamond x 1, as loot."
+            geode = geode.substring(geode.indexOf("found ") + 6, that.go_nb_geode > 1 ? geode.lastIndexOf(",") : geode.indexOf(" as loot."));
             geode = geode.split(", ");
-            for(var j = 0; j < geode.length; j++){
+            for (var j = 0; j < geode.length; j++) {
                 geode[j] = geode[j].split(" x ");
             }
             clearInterval(Activity_Geode_hook);
             that.go_main_game(that, geode);
-        } catch(e) {console.log(e.message); return; }
+        } catch (e) {
+            console.log(e.message);
+            return;
+        }
     }, 40);
-}
+};
 
-Stonehub_updateUI_xyz.prototype.go_main_game = function(that, geode) {
-
+Stonehub_updateUI_xyz.prototype.go_main_game = function (that, geode) {
     var x = document.getElementById("root");
     x.style.display = "none";
-    var audio = new Audio('https://raw.githubusercontent.com/geode-booster/geode-booster.github.io/master/eussou.mp3');
+    var audio = new Audio("https://raw.githubusercontent.com/geode-booster/geode-booster.github.io/master/eussou.mp3");
     audio.volume = 0.05;
     audio.play();
 
@@ -519,66 +569,79 @@ Stonehub_updateUI_xyz.prototype.go_main_game = function(that, geode) {
     imgs["Mind Talisman"] = that.go_mind_talisman;
     imgs["Cosmic Talisman"] = that.go_cosmic_talisman;
 
-    document.getElementsByTagName("body")[0].style.cursor = "url('https://raw.githubusercontent.com/geode-booster/geode-booster.github.io/master/pick0.png') 5 65, auto";
+    document.getElementsByTagName("body")[0].style.cursor =
+        "url('https://raw.githubusercontent.com/geode-booster/geode-booster.github.io/master/pick0.png') 5 65, auto";
     var canvas = document.createElement("canvas");
     var ctx = canvas.getContext("2d");
     canvas.style.position = "absolute";
     canvas.style.top = "0px";
     canvas.style.left = "0px";
     document.body.appendChild(canvas);
-    var w = canvas.width = innerWidth;
-    var h = canvas.height = innerHeight;
+    var w = (canvas.width = innerWidth);
+    var h = (canvas.height = innerHeight);
 
     // Shuffle what we can find in each geode
-    var probability = geode.map((v, i) => Array(parseInt(v[1],10)).fill(i)).reduce((c, v) => c.concat(v), []);
+    var probability = geode.map((v, i) => Array(parseInt(v[1], 10)).fill(i)).reduce((c, v) => c.concat(v), []);
     shuffle(probability);
     var total_part = probability.length;
 
-    for(let i = 0; i < that.go_nb_geode; i++) {
+    for (let i = 0; i < that.go_nb_geode; i++) {
         that.go_gl.push({
-            x : canvas.width/2, y : canvas.height/2,
-            xr : rand(canvas.width), yr : rand(canvas.height),
-            r : rand(0,1), // mélangeons les goudjas
-            scale : rand(0.9,1.2), // chanclons la bougnadère
-            dx : rand(-3,3), dy : rand(-3,3),
-            dr : rand(-0.4,0.4),
-        })
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            xr: rand(canvas.width),
+            yr: rand(canvas.height),
+            r: rand(0, 1), // mélangeons les goudjas
+            scale: rand(0.9, 1.2), // chanclons la bougnadère
+            dx: rand(-3, 3),
+            dy: rand(-3, 3),
+            dr: rand(-0.4, 0.4),
+        });
     }
 
-    canvas.addEventListener('click', function(event) {
-        var pas = that.go_gl.length-1;
-        while(pas >= 0) {
+    canvas.addEventListener("click", function (event) {
+        var pas = that.go_gl.length - 1;
+        while (pas >= 0) {
             var spr = that.go_gl[pas];
-            if(event.offsetX > spr.xr-(that.go_geode.width/2*spr.scale) && event.offsetX < spr.xr+(that.go_geode.width/2*spr.scale) && event.offsetY > spr.yr-(that.go_geode.height/2*spr.scale) && event.offsetY < spr.yr+(that.go_geode.height/2*spr.scale)){
-                let nb_part = (that.go_gl.length > 1) ? Math.ceil(total_part / that.go_nb_geode) : probability.length;
-                for(let i = 0; i < nb_part; i++) {
+            if (
+                event.offsetX > spr.xr - (that.go_geode.width / 2) * spr.scale &&
+                event.offsetX < spr.xr + (that.go_geode.width / 2) * spr.scale &&
+                event.offsetY > spr.yr - (that.go_geode.height / 2) * spr.scale &&
+                event.offsetY < spr.yr + (that.go_geode.height / 2) * spr.scale
+            ) {
+                let nb_part = that.go_gl.length > 1 ? Math.ceil(total_part / that.go_nb_geode) : probability.length;
+                for (let i = 0; i < nb_part; i++) {
                     that.go_pl.push({
                         name: geode[probability[i]][0],
-                        img : imgs[geode[probability[i]][0]],
-                        x : event.offsetX+(imgs[geode[probability[i]][0]].width/2*spr.scale), y : event.offsetY+(imgs[geode[probability[i]][0]].height/2*spr.scale),
-                        xr : 0, yr : 0,
-                        r : rand(0,1), // mélangeons les goudjas
-                        scale : rand(0.2,0.5), // chanclons la bougnadère
-                        dx : rand(-2,2), dy : rand(-2,2),
-                        dr : rand(-0.2,0.2),
-                        tick : Math.floor(rand(900, 1400))
-                    })
+                        img: imgs[geode[probability[i]][0]],
+                        x: event.offsetX + (imgs[geode[probability[i]][0]].width / 2) * spr.scale,
+                        y: event.offsetY + (imgs[geode[probability[i]][0]].height / 2) * spr.scale,
+                        xr: 0,
+                        yr: 0,
+                        r: rand(0, 1), // mélangeons les goudjas
+                        scale: rand(0.2, 0.5), // chanclons la bougnadère
+                        dx: rand(-2, 2),
+                        dy: rand(-2, 2),
+                        dr: rand(-0.2, 0.2),
+                        tick: Math.floor(rand(900, 1400)),
+                    });
                 }
                 probability = probability.splice(nb_part);
                 that.go_gl.splice(pas, 1);
                 break;
             }
-            pas--
+            pas--;
         }
     });
 
     // src "accepted answer" https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
     function shuffle(array) {
-        var currentIndex = array.length, temporaryValue, randomIndex;
+        var currentIndex = array.length,
+            temporaryValue,
+            randomIndex;
 
         // While there remain elements to shuffle...
         while (0 !== currentIndex) {
-
             // Pick a remaining element...
             randomIndex = Math.floor(Math.random() * currentIndex);
             currentIndex -= 1;
@@ -592,27 +655,27 @@ Stonehub_updateUI_xyz.prototype.go_main_game = function(that, geode) {
         return array;
     }
 
-    function rand(min,max){
-        return Math.random() * (max ?(max-min) : min) + (max ? min : 0)
+    function rand(min, max) {
+        return Math.random() * (max ? max - min : min) + (max ? min : 0);
     }
 
-    function drawImage(image, spr){
-//         ctx.setTransform(spr.scale, 0, 0, spr.scale, spr.xr, spr.yr); // yatangaki par là
+    function drawImage(image, spr) {
+        //         ctx.setTransform(spr.scale, 0, 0, spr.scale, spr.xr, spr.yr); // yatangaki par là
         ctx.setTransform(spr.scale, 0, 0, spr.scale, spr.xr, spr.yr); // yatangaki par là
-        ctx.rotate(spr.r/10);
+        ctx.rotate(spr.r / 10);
         ctx.drawImage(image, -image.width / 2, -image.height / 2);
     }
 
-    function update(){
-        var ihM,iwM;
-        ctx.setTransform(1,0,0,1,0,0);
-        ctx.clearRect(0,0,w,h);
-        ctx.fillStyle = 'rgba(0,0,0,0.75)';
-        ctx.fillRect(0,0,window.innerWidth,window.innerHeight);
+    function update() {
+        var ihM, iwM;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "rgba(0,0,0,0.75)";
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-        var iw = imgs['Geode'].width;
-        var ih = imgs['Geode'].height;
-        for(i = 0; i < that.go_pl.length; i ++){
+        var iw = imgs["Geode"].width;
+        var ih = imgs["Geode"].height;
+        for (i = 0; i < that.go_pl.length; i++) {
             spr = that.go_pl[i];
             spr.x += spr.dx;
             spr.y += spr.dy;
@@ -620,32 +683,32 @@ Stonehub_updateUI_xyz.prototype.go_main_game = function(that, geode) {
             spr.tick -= 1;
             iwM = iw * spr.scale * 2 + w;
             ihM = ih * spr.scale * 2 + h;
-            spr.xr = ((spr.x % iwM) + iwM) % iwM - iw * spr.scale;
-            spr.yr = ((spr.y % ihM) + ihM) % ihM - ih * spr.scale;
-            drawImage(spr.img,spr);
+            spr.xr = (((spr.x % iwM) + iwM) % iwM) - iw * spr.scale;
+            spr.yr = (((spr.y % ihM) + ihM) % ihM) - ih * spr.scale;
+            drawImage(spr.img, spr);
         }
-        for(var i = 0; i < that.go_gl.length; i ++){
+        for (var i = 0; i < that.go_gl.length; i++) {
             var spr = that.go_gl[i];
             spr.x += spr.dx;
             spr.y += spr.dy;
             spr.r += spr.dr;
             iwM = iw * spr.scale * 2 + w;
             ihM = ih * spr.scale * 2 + h;
-            spr.xr = ((spr.x % iwM) + iwM) % iwM - iw * spr.scale;
-            spr.yr = ((spr.y % ihM) + ihM) % ihM - ih * spr.scale;
-            drawImage(imgs['Geode'],spr);
+            spr.xr = (((spr.x % iwM) + iwM) % iwM) - iw * spr.scale;
+            spr.yr = (((spr.y % ihM) + ihM) % ihM) - ih * spr.scale;
+            drawImage(imgs["Geode"], spr);
         }
-        var pas = 0
-        while(pas < that.go_pl.length ) {
-            if(that.go_pl[pas].tick == 0){
-                that.go_pl.splice(pas,1);
+        var pas = 0;
+        while (pas < that.go_pl.length) {
+            if (that.go_pl[pas].tick == 0) {
+                that.go_pl.splice(pas, 1);
             } else {
                 pas += 1;
             }
         }
-        if(that.go_pl.length==0 && that.go_gl.length==0){
+        if (that.go_pl.length == 0 && that.go_gl.length == 0) {
             audio.pause();
-            document.body.removeChild(canvas)
+            document.body.removeChild(canvas);
             document.getElementsByTagName("body")[0].style.cursor = "auto";
             x.style.display = "block";
             return;
@@ -653,6 +716,7 @@ Stonehub_updateUI_xyz.prototype.go_main_game = function(that, geode) {
         requestAnimationFrame(update);
     }
     requestAnimationFrame(update);
-}
+};
 
-let s = new Stonehub_updateUI_xyz(); s.start()
+let s = new Stonehub_updateUI_xyz();
+s.start();
